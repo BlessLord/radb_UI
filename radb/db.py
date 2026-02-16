@@ -26,12 +26,13 @@ def sqltype_to_ratype(sqltype):
 
 class DB:
 
-    def __init__(self, configured, prefix='db.'):
+    def __init__(self, configured, resultprinter, prefix='db.'):
         props = { key[len(prefix):] : configured[key]\
                   for key in configured if key.startswith(prefix) }
         self.engine = create_engine(engine.url.URL.create(**props))
         self.inspector = inspect(self.engine)
         self.conn = self.engine.connect()
+        self.resultprinter = resultprinter
 
     def list(self):
         return self.inspector.get_table_names()
@@ -56,17 +57,10 @@ class DB:
             result = self.conn.execute(text(query), **kwargs)
         return result
 
-    def execute_and_print_result(self, query, **kwargs):
+    def execute_and_print_result(self, query, attrs, **kwargs):
         result = self.execute(query, **kwargs)
         self.conn.commit()
         if result.returns_rows:
-            print('-'*70)
-            count = 0
-            for row in result:
-                print(', '.join(str(val) for val in row))
-                count += 1
-            print('-'*70)
-            print('{} tuple{} returned'.format('no' if count == 0 else count,
-                                               '' if count == 1 else 's'))
+            print(self.resultprinter.print(result, attrs))
         else:
             print('done')

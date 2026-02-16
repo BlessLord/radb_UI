@@ -262,6 +262,15 @@ def one_statement_from_string(s):
     ast = ASTBuilder().visit(tree)
     return ast
 
+def statements_from_string(s):
+    lexer = RALexer(InputStream(s))
+    lexer._listeners = [RAErrorListener()]
+    parser = RAParser(CommonTokenStream(lexer))
+    parser._listeners = [RAErrorListener()]
+    tree = parser.program()
+    asts = ASTBuilder().visit(tree)
+    return asts
+
 def statements_from_file(filename):
     lexer = RALexer(FileStream(filename))
     lexer._listeners = [RAErrorListener()]
@@ -372,4 +381,3 @@ class RACompleter:
             return self.matching_words[index]
         except IndexError:
             return None
-

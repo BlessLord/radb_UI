@@ -29,6 +29,12 @@ useful ones are listed below.
   RA session, which is especially useful for recording what you did in
   an interactive session.
 
+* Use ``-q`` (``--query``) *query_string* to specify an RA statement to execute.
+  If this parameter is provided radb will exit after evaluating this statement.
+
+* Use ``-f`` (``--outputformat``) *format* (one of ``default``, ``org``,
+  ``markdown``, ``csv``) to select how results are shown.
+
 * The optional *source* argument (without a flag) specifies the data
   source you want to connect to.  It can be the name of a section in
   your user configuration file (under which RA can find detailed

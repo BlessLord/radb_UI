@@ -18,7 +18,8 @@ from radb.parse import ParsingError,\
 from radb.typesys import ValTypeChecker, TypeSysError
 from radb.views import ViewCollection
 from radb import utils
-from radb.ast import Context, ValidationError, ExecutionError, execute_from_file
+from radb.ast import Context, ValidationError, ExecutionError, execute_from_file, execute_from_str
+from radb.resultprinter import ResultPrinter
 
 import logging
 logger = logging.getLogger('ra')
@@ -37,12 +38,16 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--configfile', '-c', type=str, default=defaults['configfile'],
                         help='configuration file (default: {})'.format(defaults['configfile']))
+    parser.add_argument('--query', '-q', type=str,
+                        help='evaluate this query and exit')
     parser.add_argument('--password', '-p', action='store_true',
                         help='prompt for database password')
     parser.add_argument('--inputfile', '-i', type=str,
                         help='input file')
     parser.add_argument('--outputfile', '-o', type=str,
                         help='output file')
+    parser.add_argument('--outputformat', '-f', type=str, default=defaults['outputformat'],
+                        help='format to use for query results [{}] (default: {})'.format(defaults['outputformats'], defaults['outputformat']))
     parser.add_argument('--echo', '-e', action='store_true',
                         help='echo input')
     parser.add_argument('--verbose', '-v', action='store_true',
@@ -65,6 +70,9 @@ def main():
     logger_handler.setFormatter(logging.Formatter('%(levelname)s: %(message)s'))
     logger.addHandler(logger_handler)
 
+    # instantiate results printer
+    resultprinter = ResultPrinter.create(args.outputformat)
+
     # read user configuration file (starting with system defaults):
     config = configparser.ConfigParser(defaults)
     if config.read(os.path.expanduser(args.configfile)) == []:
@@ -84,7 +92,7 @@ def main():
     if 'db.database' not in configured:
         logger.warning('no database specified')
     try:
-        db = DB(configured)
+        db = DB(configured, resultprinter)
     except Exception as e:
         logger.error('failed to connect to database: {}'.format(e))
         sys.exit(1)
@@ -100,7 +108,16 @@ def main():
     context = Context(configured, db, check, ViewCollection())
 
     # finally, let's start:
-    if args.inputfile is None: # interactive:
+    # did the user provide a single query to execute?
+    if args.query:
+        try:
+            execute_from_str(args.query, context, echo=args.echo)
+        except (ParsingError, ValidationError, ExecutionError) as e:
+            logger.error(f"Query failed: {args.query}")
+            logger.error(e)
+            sys.exit(1)
+    # are we running in interactive mode (no query or input file provided)
+    elif args.inputfile is None: # interactive:
         if _readline_available:
             # set up command history file:
             historyfile = os.path.expanduser(configured['historyfile'])
@@ -140,6 +157,7 @@ def main():
                 ast.execute(context)
             except (ParsingError, ValidationError, ExecutionError) as e:
                 logger.error(e)
+    # execute statements from an input file
     else:
         try:
             execute_from_file(args.inputfile, context, echo=args.echo)
