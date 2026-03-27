@@ -1,6 +1,11 @@
 import io
-from typing import override
 import csv
+
+try:
+    from typing import override
+except ImportError:
+    def override(func):
+        return func
 
 class ResultPrinter():
 

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>radb Web UI</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <section class="brand-card">
+        <p class="eyebrow">Local Demo UI</p>
+        <h1>radb</h1>
+        <p class="brand-copy">Build relational algebra visually, inspect the generated `radb` query, then run the raw text version against SQLite.</p>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <h2>Database Relations</h2>
+          <p>Loaded from the active SQLite file.</p>
+        </div>
+        <p id="db-path" class="path-pill">Loading schema…</p>
+        <div id="relation-list" class="relation-list"></div>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <h2>Operator Reference</h2>
+          <p>Builder operators generate executable `radb` syntax.</p>
+        </div>
+        <ul class="operator-list">
+          <li><code>\project_{attrs}</code></li>
+          <li><code>\select_{condition}</code></li>
+          <li><code>\rename_{...}</code></li>
+          <li><code>\join</code> and <code>\join_{cond}</code></li>
+          <li><code>\union</code></li>
+          <li><code>\intersect</code></li>
+          <li><code>\diff</code></li>
+        </ul>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
+          <h2>Sample Queries</h2>
+          <p>Load a sample directly into the raw editor.</p>
+        </div>
+        <select id="sample-query-select"></select>
+        <button id="load-sample" class="secondary-button" type="button">Load Sample</button>
+      </section>
+    </aside>
+
+    <main class="workspace">
+      <section class="hero">
+        <div>
+          <p class="eyebrow">Two Input Modes</p>
+          <h2>Visual Builder + Raw `radb` Editor</h2>
+          <p class="hero-copy">Builder changes immediately rewrite the raw query box. The raw editor is still the source of truth when you click Run.</p>
+        </div>
+        <div class="hero-badge">Classroom-ready local prototype</div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Visual Builder</h2>
+            <p>Compose nested relational algebra expressions from reusable building blocks.</p>
+          </div>
+          <button id="builder-reset" class="secondary-button" type="button">Reset Builder</button>
+        </div>
+
+        <div class="query-preview">
+          <span>Generated query</span>
+          <code id="generated-query">Builder query will appear here.</code>
+        </div>
+
+        <div id="builder-root" class="builder-root"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Raw Query Editor</h2>
+            <p>Manual edits here are used for execution exactly as written.</p>
+          </div>
+          <div class="button-row">
+            <button id="clear-all" class="secondary-button" type="button">Clear</button>
+            <button id="run-query" class="primary-button" type="button">Run Query</button>
+          </div>
+        </div>
+
+        <textarea id="query-editor" spellcheck="false" placeholder="Type or refine a radb query here..."></textarea>
+        <p class="editor-note">Builder updates overwrite this editor. If you want to experiment manually, edit here and run immediately.</p>
+      </section>
+
+      <section id="error-panel" class="panel error-panel hidden">
+        <div class="section-heading">
+          <h2>Error</h2>
+          <p>Parser, validation, or runtime issues show up here.</p>
+        </div>
+        <pre id="error-text"></pre>
+      </section>
+
+      <section class="panel results-panel">
+        <div class="panel-header">
+          <div>
+            <h2>Results</h2>
+            <p id="results-summary">Run a query to show output tuples.</p>
+          </div>
+        </div>
+        <div id="results-empty" class="empty-state">no tuples returned</div>
+        <div id="results-table-wrap" class="table-wrap hidden">
+          <table id="results-table"></table>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <datalist id="relation-options"></datalist>
+  <script src="/app.js" defer></script>
+</body>
+</html>

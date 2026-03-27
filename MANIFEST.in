@@ -1,4 +1,6 @@
 include LICENSE.txt
 include radb/sys.ini
+include webui/README.md
 recursive-include external *
 recursive-include sample *
+recursive-include webui/static *
