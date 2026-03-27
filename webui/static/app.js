@@ -1038,7 +1038,7 @@ function renderResults(data) {
 }
 
 async function loadSchema() {
-  const response = await fetch("/api/schema");
+  const response = await fetch("api/schema");
   const payload = await response.json();
   if (!response.ok || !payload.ok) {
     throw new Error(payload.error || "failed to load schema");
@@ -1051,7 +1051,7 @@ async function switchToSampleDatabase() {
   uploadFeedback.textContent = "Switching to the sample database…";
 
   try {
-    const response = await fetch("/api/database/sample", {
+    const response = await fetch("api/database/sample", {
       method: "POST",
     });
     const payload = await response.json();
@@ -1090,7 +1090,7 @@ async function uploadDatabase() {
   formData.append("database", file);
 
   try {
-    const response = await fetch("/api/database/upload", {
+    const response = await fetch("api/database/upload", {
       method: "POST",
       body: formData,
     });
@@ -1112,7 +1112,7 @@ async function runQuery() {
   resultsSummary.textContent = "Running query…";
 
   try {
-    const response = await fetch("/api/run", {
+    const response = await fetch("api/run", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

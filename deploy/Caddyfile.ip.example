@@ -1,0 +1,40 @@
+# Bare-IP deployment for a path-prefixed radb UI.
+#
+# This exposes the app at:
+#   https://3.120.35.41/ra/
+#
+# Important:
+# - Public certificate authorities generally do not issue browser-trusted certs
+#   for a plain server IP in this setup.
+# - `tls internal` makes Caddy issue its own certificate instead.
+# - Browsers will show a certificate warning until you install and trust Caddy's
+#   local root certificate on each client machine that visits the site.
+
+https://3.120.35.41 {
+    encode zstd gzip
+
+    basic_auth {
+        SwustStudent <PASTE_BCRYPT_HASH_HERE>
+    }
+
+    tls internal
+
+    redir /ra /ra/ 308
+
+    handle_path /ra/* {
+        reverse_proxy 127.0.0.1:8000
+    }
+
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options SAMEORIGIN
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+
+    log {
+        output file /var/log/caddy/radb-webui.access.log
+        format console
+    }
+
+    respond "Not Found" 404
+}

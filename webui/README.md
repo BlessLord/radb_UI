@@ -52,12 +52,14 @@ python -m webui.server
 - The backend reuses `radb` parsing, validation, translation, and execution code instead of reimplementing the RA engine.
 - The page now includes a mathematical preview with Unicode RA symbols and LaTeX. Full typeset math uses MathJax from a CDN, so if you are offline the Unicode view and LaTeX source still work but the rendered math panel will stay in fallback mode.
 - Uploaded databases must be valid SQLite files with the `.db` extension and a size of at most `1 MB`.
+- The frontend uses relative asset and API paths, so it can be reverse-proxied at `/` or under a path prefix such as `/ra/`.
 
 ## Deployment
 
 Example Caddy and `systemd` deployment files for a Lightsail host are in:
 
 - `deploy/Caddyfile.example`
+- `deploy/Caddyfile.ip.example`
 - `deploy/radb-webui.service.example`
 - `deploy/radb-webui.env.example`
 - `deploy/LIGHTSAIL.md`

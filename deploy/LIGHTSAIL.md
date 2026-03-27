@@ -142,3 +142,25 @@ Caddy will automatically request and renew TLS certificates for the configured d
 
 - If you only have the server IP and no domain yet, Caddy can still proxy HTTP, but automatic public HTTPS certificates are domain-based.
 - The web app's MathJax rendering uses a CDN, so the server needs outbound internet access if you want the rendered LaTeX panel to work in browsers.
+
+## No Domain: IP + /ra Path
+
+If you only have the instance IP and want the app under a path like:
+
+```text
+https://3.120.35.41/ra/
+```
+
+use the example at:
+
+- `deploy/Caddyfile.ip.example`
+
+This works because the frontend now uses relative asset and API paths, so Caddy can strip the `/ra` prefix before proxying to `webui.server`.
+
+Important limitations:
+
+- A bare IP will not get the same kind of browser-trusted public certificate that you get with a normal domain in this setup.
+- The example uses `tls internal`, which means Caddy signs the certificate itself.
+- Browsers will warn about the certificate until you install and trust Caddy's local CA certificate on every client machine that should access the site.
+
+If you do not want to install trust certificates on client machines, use plain HTTP on the IP instead of HTTPS, or get a domain and use the domain-based Caddyfile.
