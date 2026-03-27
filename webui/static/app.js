@@ -12,6 +12,10 @@ const SAMPLE_QUERIES = [
     query: "Student \\join Apply;",
   },
   {
+    label: "Cross product Student and College",
+    query: "Student \\cross College;",
+  },
+  {
     label: "Intersect student names with renamed colleges",
     query: "\\project_{sname} Student \\intersect \\rename_{sname} \\project_{cname} College;",
   },
@@ -24,6 +28,7 @@ const SAMPLE_QUERIES = [
 const BINARY_TYPES = new Set([
   "natural_join",
   "theta_join",
+  "cross",
   "union",
   "intersect",
   "diff",
@@ -36,6 +41,7 @@ const TYPE_OPTIONS = [
   { value: "rename", label: "Rename (\\rename)" },
   { value: "natural_join", label: "Natural Join (\\join)" },
   { value: "theta_join", label: "Theta Join (\\join_{cond})" },
+  { value: "cross", label: "Cross Product (\\cross)" },
   { value: "union", label: "Union (\\union)" },
   { value: "intersect", label: "Intersect (\\intersect)" },
   { value: "diff", label: "Difference (\\diff)" },
@@ -61,9 +67,409 @@ const resultsEmpty = document.getElementById("results-empty");
 const resultsTableWrap = document.getElementById("results-table-wrap");
 const resultsTable = document.getElementById("results-table");
 const sampleQuerySelect = document.getElementById("sample-query-select");
+const mathPreviewStatus = document.getElementById("math-preview-status");
+const mathjaxStatus = document.getElementById("mathjax-status");
+const unicodePreview = document.getElementById("unicode-preview");
+const latexSource = document.getElementById("latex-source");
+const latexRendered = document.getElementById("latex-rendered");
 
 function cloneNode(node) {
   return JSON.parse(JSON.stringify(node));
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function escapeLatexText(value) {
+  return String(value)
+    .replaceAll("\\", "\\textbackslash{}")
+    .replaceAll("{", "\\{")
+    .replaceAll("}", "\\}")
+    .replaceAll("_", "\\_")
+    .replaceAll("%", "\\%")
+    .replaceAll("#", "\\#")
+    .replaceAll("&", "\\&")
+    .replaceAll("$", "\\$")
+    .replaceAll("^", "\\^{}");
+}
+
+function readBraceContent(source, openBraceIndex) {
+  if (source[openBraceIndex] !== "{") {
+    throw new Error("expected opening brace");
+  }
+
+  let depth = 0;
+  let content = "";
+
+  for (let index = openBraceIndex; index < source.length; index += 1) {
+    const char = source[index];
+
+    if (char === "{") {
+      depth += 1;
+      if (depth > 1) {
+        content += char;
+      }
+      continue;
+    }
+
+    if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return {
+          content,
+          endIndex: index + 1,
+        };
+      }
+      content += char;
+      continue;
+    }
+
+    content += char;
+  }
+
+  throw new Error("unclosed brace in relational algebra expression");
+}
+
+function tokenizeMathExpression(source) {
+  const tokens = [];
+  const unaryOperators = [
+    { prefix: "\\project_{", type: "PROJECT" },
+    { prefix: "\\select_{", type: "SELECT" },
+    { prefix: "\\rename_{", type: "RENAME" },
+    { prefix: "\\join_{", type: "THETA_JOIN" },
+  ];
+  const binaryOperators = [
+    { prefix: "\\join", type: "JOIN" },
+    { prefix: "\\cross", type: "CROSS" },
+    { prefix: "\\union", type: "UNION" },
+    { prefix: "\\intersect", type: "INTERSECT" },
+    { prefix: "\\diff", type: "DIFF" },
+  ];
+
+  let index = 0;
+
+  while (index < source.length) {
+    const char = source[index];
+
+    if (/\s/.test(char) || char === ";") {
+      index += 1;
+      continue;
+    }
+
+    if (char === "(") {
+      tokens.push({ type: "LPAREN" });
+      index += 1;
+      continue;
+    }
+
+    if (char === ")") {
+      tokens.push({ type: "RPAREN" });
+      index += 1;
+      continue;
+    }
+
+    let matched = false;
+    for (const operator of unaryOperators) {
+      if (source.startsWith(operator.prefix, index)) {
+        const braceIndex = index + operator.prefix.length - 1;
+        const { content, endIndex } = readBraceContent(source, braceIndex);
+        tokens.push({ type: operator.type, arg: content.trim() });
+        index = endIndex;
+        matched = true;
+        break;
+      }
+    }
+
+    if (matched) {
+      continue;
+    }
+
+    for (const operator of binaryOperators) {
+      if (source.startsWith(operator.prefix, index)) {
+        tokens.push({ type: operator.type });
+        index += operator.prefix.length;
+        matched = true;
+        break;
+      }
+    }
+
+    if (matched) {
+      continue;
+    }
+
+    let endIndex = index;
+    while (endIndex < source.length && !/[\s();\\]/.test(source[endIndex])) {
+      endIndex += 1;
+    }
+
+    if (endIndex === index) {
+      throw new Error(`unsupported token near "${source.slice(index, index + 12)}"`);
+    }
+
+    tokens.push({
+      type: "RELATION",
+      value: source.slice(index, endIndex),
+    });
+    index = endIndex;
+  }
+
+  return tokens;
+}
+
+function parseMathExpression(source) {
+  const tokens = tokenizeMathExpression(source.trim());
+  let index = 0;
+
+  function peek() {
+    return tokens[index] || null;
+  }
+
+  function consume(expectedType) {
+    const token = peek();
+    if (!token || token.type !== expectedType) {
+      throw new Error(`expected ${expectedType}`);
+    }
+    index += 1;
+    return token;
+  }
+
+  function parsePrimary() {
+    const token = peek();
+
+    if (!token) {
+      throw new Error("incomplete expression");
+    }
+
+    if (token.type === "LPAREN") {
+      consume("LPAREN");
+      const expr = parseSetExpression();
+      consume("RPAREN");
+      return { kind: "group", expr };
+    }
+
+    if (token.type === "RELATION") {
+      index += 1;
+      return { kind: "relation", name: token.value };
+    }
+
+    if (["PROJECT", "SELECT", "RENAME"].includes(token.type)) {
+      index += 1;
+      return {
+        kind: "unary",
+        op: token.type,
+        arg: token.arg,
+        child: parsePrimary(),
+      };
+    }
+
+    throw new Error("unsupported relational algebra form for live math preview");
+  }
+
+  function parseJoinExpression() {
+    let node = parsePrimary();
+
+    while (["JOIN", "THETA_JOIN", "CROSS"].includes(peek()?.type)) {
+      const operator = peek();
+      index += 1;
+      node = {
+        kind: "binary",
+        op: operator.type,
+        arg: operator.arg || "",
+        left: node,
+        right: parsePrimary(),
+      };
+    }
+
+    return node;
+  }
+
+  function parseSetExpression() {
+    let node = parseJoinExpression();
+
+    while (["UNION", "INTERSECT", "DIFF"].includes(peek()?.type)) {
+      const operator = peek();
+      index += 1;
+      node = {
+        kind: "binary",
+        op: operator.type,
+        left: node,
+        right: parseJoinExpression(),
+      };
+    }
+
+    return node;
+  }
+
+  const ast = parseSetExpression();
+  if (index !== tokens.length) {
+    throw new Error("extra tokens remained after parsing");
+  }
+  return ast;
+}
+
+function precedence(node) {
+  if (!node) {
+    return -1;
+  }
+  if (node.kind === "group") {
+    return 99;
+  }
+  if (node.kind === "relation") {
+    return 4;
+  }
+  if (node.kind === "unary") {
+    return 3;
+  }
+  if (node.op === "JOIN" || node.op === "THETA_JOIN" || node.op === "CROSS") {
+    return 2;
+  }
+  return 1;
+}
+
+function wrapUnicodeOperand(node, parentPrecedence) {
+  const rendered = renderUnicodeMath(node);
+  if (node.kind === "group" || precedence(node) >= parentPrecedence) {
+    return rendered;
+  }
+  return `<span class="math-expression">(</span>${rendered}<span class="math-expression">)</span>`;
+}
+
+function wrapLatexOperand(node, parentPrecedence) {
+  const rendered = renderLatexMath(node);
+  if (node.kind === "group" || precedence(node) >= parentPrecedence) {
+    return rendered;
+  }
+  return `\\left(${rendered}\\right)`;
+}
+
+function renderUnicodeMath(node) {
+  if (node.kind === "group") {
+    return `<span class="math-expression">(</span>${renderUnicodeMath(node.expr)}<span class="math-expression">)</span>`;
+  }
+
+  if (node.kind === "relation") {
+    return `<span class="math-identifier">${escapeHtml(node.name)}</span>`;
+  }
+
+  if (node.kind === "unary") {
+    const symbol = {
+      PROJECT: "π",
+      SELECT: "σ",
+      RENAME: "ρ",
+    }[node.op];
+    const child = node.child.kind === "group"
+      ? renderUnicodeMath(node.child.expr)
+      : renderUnicodeMath(node.child);
+    const subscript = node.arg ? `<sub>${escapeHtml(node.arg)}</sub>` : "";
+    return `<span class="math-expression"><span class="math-symbol">${symbol}</span>${subscript}<span class="math-expression">(</span>${child}<span class="math-expression">)</span></span>`;
+  }
+
+  const symbol = {
+    JOIN: "⋈",
+    THETA_JOIN: "⋈",
+    CROSS: "×",
+    UNION: "∪",
+    INTERSECT: "∩",
+    DIFF: "−",
+  }[node.op];
+  const subscript = node.arg ? `<sub>${escapeHtml(node.arg)}</sub>` : "";
+  const currentPrecedence = precedence(node);
+  const left = wrapUnicodeOperand(node.left, currentPrecedence);
+  const right = wrapUnicodeOperand(node.right, currentPrecedence);
+  return `${left} <span class="math-expression"><span class="math-symbol">${symbol}</span>${subscript}</span> ${right}`;
+}
+
+function renderLatexMath(node) {
+  if (node.kind === "group") {
+    return `\\left(${renderLatexMath(node.expr)}\\right)`;
+  }
+
+  if (node.kind === "relation") {
+    return `\\mathsf{${escapeLatexText(node.name)}}`;
+  }
+
+  if (node.kind === "unary") {
+    const symbol = {
+      PROJECT: "\\pi",
+      SELECT: "\\sigma",
+      RENAME: "\\rho",
+    }[node.op];
+    const subscript = node.arg ? `_{\\text{${escapeLatexText(node.arg)}}}` : "";
+    const child = node.child.kind === "group"
+      ? renderLatexMath(node.child.expr)
+      : renderLatexMath(node.child);
+    return `${symbol}${subscript}\\left(${child}\\right)`;
+  }
+
+  const symbol = {
+    JOIN: "\\bowtie",
+    THETA_JOIN: "\\bowtie",
+    CROSS: "\\times",
+    UNION: "\\cup",
+    INTERSECT: "\\cap",
+    DIFF: "\\mathbin{-}",
+  }[node.op];
+  const subscript = node.arg ? `_{\\text{${escapeLatexText(node.arg)}}}` : "";
+  const currentPrecedence = precedence(node);
+  const left = wrapLatexOperand(node.left, currentPrecedence);
+  const right = wrapLatexOperand(node.right, currentPrecedence);
+  return `${left} ${symbol}${subscript} ${right}`;
+}
+
+function setMathJaxStatus(message) {
+  mathjaxStatus.textContent = message;
+}
+
+function renderLatexSurface(latex) {
+  if (!latex) {
+    latexRendered.innerHTML = '<div class="math-fallback">Waiting for a complete query.</div>';
+    return;
+  }
+
+  if (!window.MathJax || typeof window.MathJax.typesetPromise !== "function") {
+    latexRendered.innerHTML = '<div class="math-fallback">MathJax is unavailable. The LaTeX source above is still usable.</div>';
+    return;
+  }
+
+  latexRendered.innerHTML = `\\[${latex}\\]`;
+  window.MathJax.typesetClear?.([latexRendered]);
+  window.MathJax.typesetPromise([latexRendered]).catch(() => {
+    latexRendered.innerHTML = '<div class="math-fallback">MathJax could not render this expression.</div>';
+  });
+}
+
+function updateMathPreview(query) {
+  const trimmedQuery = query.trim();
+
+  if (!trimmedQuery) {
+    mathPreviewStatus.textContent = "Live mathematical rendering for the current raw query.";
+    unicodePreview.innerHTML = "Type a query to preview it here.";
+    latexSource.textContent = "Type a query to generate LaTeX.";
+    renderLatexSurface("");
+    return;
+  }
+
+  try {
+    const ast = parseMathExpression(trimmedQuery);
+    const unicodeHtml = renderUnicodeMath(ast);
+    const latex = renderLatexMath(ast);
+
+    mathPreviewStatus.textContent = "Rendered from the current raw query editor.";
+    unicodePreview.innerHTML = unicodeHtml;
+    latexSource.textContent = latex;
+    renderLatexSurface(latex);
+  } catch (error) {
+    mathPreviewStatus.textContent = "Complete a supported project/select/rename/join/set expression to typeset it.";
+    unicodePreview.textContent = trimmedQuery;
+    latexSource.textContent = trimmedQuery;
+    renderLatexSurface("");
+  }
 }
 
 function relationNames() {
@@ -193,6 +599,12 @@ function createNode(type, existing = null) {
       return {
         type,
         condition: "1 = 1",
+        left: leftSeed(existing),
+        right: rightSeed(existing),
+      };
+    case "cross":
+      return {
+        type,
         left: leftSeed(existing),
         right: rightSeed(existing),
       };
@@ -414,6 +826,10 @@ function renderExpression(node) {
     return `${leftExpr} \\join_{${(node.condition || "").trim()}} ${rightExpr}`.trim();
   }
 
+  if (node.type === "cross") {
+    return `${leftExpr} \\cross ${rightExpr}`.trim();
+  }
+
   if (node.type === "union") {
     return `${leftExpr} \\union ${rightExpr}`.trim();
   }
@@ -438,6 +854,7 @@ function syncBuilderToEditor() {
   const query = builderQuery();
   generatedQuery.textContent = query || "Builder query will appear here.";
   queryEditor.value = query;
+  updateMathPreview(query);
 }
 
 function renderBuilder() {
@@ -649,6 +1066,7 @@ document.getElementById("clear-all").addEventListener("click", () => {
   queryEditor.value = "";
   hideError();
   clearResults();
+  updateMathPreview("");
 });
 
 document.getElementById("load-sample").addEventListener("click", () => {
@@ -656,11 +1074,30 @@ document.getElementById("load-sample").addEventListener("click", () => {
   queryEditor.value = sample.query;
   hideError();
   clearResults("Sample query loaded. Run it to see output tuples.");
+  updateMathPreview(queryEditor.value);
+});
+
+queryEditor.addEventListener("input", () => {
+  updateMathPreview(queryEditor.value);
+});
+
+window.addEventListener("mathjax-ready", () => {
+  setMathJaxStatus("MathJax ready");
+  updateMathPreview(queryEditor.value);
+});
+
+window.addEventListener("mathjax-error", () => {
+  setMathJaxStatus("MathJax unavailable");
+  updateMathPreview(queryEditor.value);
 });
 
 document.addEventListener("DOMContentLoaded", async () => {
   clearResults();
   renderSamples();
+  updateMathPreview(queryEditor.value);
+  if (!window.MathJax || typeof window.MathJax.typesetPromise !== "function") {
+    setMathJaxStatus("MathJax loading…");
+  }
 
   try {
     await loadSchema();

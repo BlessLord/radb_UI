@@ -90,6 +90,7 @@ pre {
 .section-heading p,
 .panel-header p,
 .editor-note,
+.math-card h3,
 .relation-columns,
 .hero-badge,
 .path-pill,
@@ -131,6 +132,10 @@ pre {
   background: rgba(255, 255, 255, 0.72);
   text-align: center;
   font-size: 0.88rem;
+}
+
+.math-badge {
+  min-width: 160px;
 }
 
 .section-heading,
@@ -199,6 +204,86 @@ textarea {
   min-height: 180px;
   resize: vertical;
   line-height: 1.5;
+}
+
+.math-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.math-card {
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: #fff;
+}
+
+.math-card h3 {
+  margin: 0 0 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.math-card-wide {
+  background:
+    linear-gradient(135deg, rgba(13, 118, 110, 0.05), rgba(255, 255, 255, 0.96)),
+    #fff;
+}
+
+.math-surface,
+.latex-source,
+.math-rendered {
+  min-height: 92px;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: var(--panel-alt);
+}
+
+.math-surface,
+.math-rendered {
+  font-family: "Times New Roman", "STIX Two Math", serif;
+  font-size: 1.25rem;
+  line-height: 1.75;
+  overflow-x: auto;
+}
+
+.latex-source {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--ink);
+}
+
+.math-symbol {
+  font-size: 1.34em;
+}
+
+.math-expression sub {
+  font-size: 0.72em;
+  vertical-align: -0.45em;
+}
+
+.math-identifier {
+  font-style: italic;
+}
+
+.math-rendered {
+  display: flex;
+  align-items: center;
+}
+
+.math-rendered svg {
+  max-width: 100%;
+  height: auto;
+}
+
+.math-fallback {
+  color: var(--ink-soft);
+  font-family: "Avenir Next", "Segoe UI", sans-serif;
+  font-size: 0.95rem;
 }
 
 .path-pill,

@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>radb Web UI</title>
   <link rel="stylesheet" href="/styles.css">
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [["\\(", "\\)"], ["$", "$"]],
+      },
+      svg: {
+        fontCache: "global",
+      },
+    };
+  </script>
 </head>
 <body>
   <div class="app-shell">
@@ -34,6 +44,7 @@
           <li><code>\select_{condition}</code></li>
           <li><code>\rename_{...}</code></li>
           <li><code>\join</code> and <code>\join_{cond}</code></li>
+          <li><code>\cross</code></li>
           <li><code>\union</code></li>
           <li><code>\intersect</code></li>
           <li><code>\diff</code></li>
@@ -93,6 +104,33 @@
         <p class="editor-note">Builder updates overwrite this editor. If you want to experiment manually, edit here and run immediately.</p>
       </section>
 
+      <section class="panel">
+        <div class="panel-header">
+          <div>
+            <h2>Mathematical Preview</h2>
+            <p id="math-preview-status">Live mathematical rendering for the current raw query.</p>
+          </div>
+          <div id="mathjax-status" class="hero-badge math-badge">MathJax loading…</div>
+        </div>
+
+        <div class="math-grid">
+          <article class="math-card">
+            <h3>Unicode RA</h3>
+            <div id="unicode-preview" class="math-surface">Type a query to preview it here.</div>
+          </article>
+
+          <article class="math-card">
+            <h3>LaTeX Source</h3>
+            <pre id="latex-source" class="latex-source">Type a query to generate LaTeX.</pre>
+          </article>
+        </div>
+
+        <article class="math-card math-card-wide">
+          <h3>Rendered Expression</h3>
+          <div id="latex-rendered" class="math-rendered">Waiting for a complete query.</div>
+        </article>
+      </section>
+
       <section id="error-panel" class="panel error-panel hidden">
         <div class="section-heading">
           <h2>Error</h2>
@@ -117,6 +155,12 @@
   </div>
 
   <datalist id="relation-options"></datalist>
+  <script
+    async
+    src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"
+    onload="window.dispatchEvent(new Event('mathjax-ready'))"
+    onerror="window.dispatchEvent(new Event('mathjax-error'))"
+  ></script>
   <script src="/app.js" defer></script>
 </body>
 </html>
