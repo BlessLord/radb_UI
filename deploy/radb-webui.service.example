@@ -1,0 +1,15 @@
+[Unit]
+Description=radb Web UI
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+WorkingDirectory=/opt/radb
+EnvironmentFile=/etc/radb-webui.env
+ExecStart=/home/ubuntu/miniconda3/envs/ai-class/bin/python -m webui.server --host ${RADB_WEBUI_HOST} --port ${RADB_WEBUI_PORT}
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

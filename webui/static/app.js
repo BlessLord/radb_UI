@@ -50,10 +50,24 @@ const TYPE_OPTIONS = [
 const state = {
   schema: [],
   databasePath: "",
+  databaseKind: "sample",
+  sampleDatabase: null,
+  uploadedDatabase: null,
+  uploadRules: {
+    max_bytes: 1024 * 1024,
+    max_mb_text: "1 MB",
+    required_extension: ".db",
+  },
   builder: null,
   focusedRelationPath: null,
 };
 
+const databaseSourceStatus = document.getElementById("database-source-status");
+const useSampleDbButton = document.getElementById("use-sample-db");
+const uploadDbInput = document.getElementById("upload-db-input");
+const uploadDbButton = document.getElementById("upload-db-button");
+const uploadRulesText = document.getElementById("upload-rules");
+const uploadFeedback = document.getElementById("upload-feedback");
 const relationList = document.getElementById("relation-list");
 const relationOptions = document.getElementById("relation-options");
 const dbPath = document.getElementById("db-path");
@@ -75,6 +89,16 @@ const latexRendered = document.getElementById("latex-rendered");
 
 function cloneNode(node) {
   return JSON.parse(JSON.stringify(node));
+}
+
+function formatBytes(bytes) {
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(0)} MB`;
+  }
+  if (bytes >= 1024) {
+    return `${(bytes / 1024).toFixed(0)} KB`;
+  }
+  return `${bytes} bytes`;
 }
 
 function escapeHtml(value) {
@@ -465,7 +489,7 @@ function updateMathPreview(query) {
     latexSource.textContent = latex;
     renderLatexSurface(latex);
   } catch (error) {
-    mathPreviewStatus.textContent = "Complete a supported project/select/rename/join/set expression to typeset it.";
+    mathPreviewStatus.textContent = "Complete a supported project/select/rename/join/cross/set expression to typeset it.";
     unicodePreview.textContent = trimmedQuery;
     latexSource.textContent = trimmedQuery;
     renderLatexSurface("");
@@ -623,6 +647,9 @@ function createNode(type, existing = null) {
 
 function defaultBuilder() {
   const relationName = firstRelationName();
+  if (!relationName) {
+    return createRelationNode("");
+  }
   return {
     type: "project",
     attrs: firstColumnForRelation(relationName) || "attr",
@@ -862,6 +889,24 @@ function renderBuilder() {
   syncBuilderToEditor();
 }
 
+function renderDatabaseSource() {
+  const activeLabel = state.databaseKind === "upload" && state.uploadedDatabase
+    ? `Uploaded database: ${state.uploadedDatabase.label}`
+    : `Sample database: ${state.sampleDatabase?.label || "college.db"}`;
+
+  databaseSourceStatus.textContent = activeLabel;
+  useSampleDbButton.disabled = state.databaseKind === "sample";
+  uploadRulesText.textContent = `Only ${state.uploadRules.required_extension} files up to ${state.uploadRules.max_mb_text} are allowed.`;
+
+  if (state.databaseKind === "upload" && state.uploadedDatabase) {
+    uploadFeedback.textContent = `Current upload: ${state.uploadedDatabase.label}`;
+  } else if (state.uploadedDatabase) {
+    uploadFeedback.textContent = `Uploaded database available: ${state.uploadedDatabase.label}`;
+  } else {
+    uploadFeedback.textContent = "Uploads are scoped to your current browser session.";
+  }
+}
+
 function renderSchema() {
   dbPath.textContent = state.databasePath;
 
@@ -914,6 +959,27 @@ function renderSamples() {
     option.textContent = sample.label;
     sampleQuerySelect.appendChild(option);
   });
+}
+
+function resetWorkspaceForDatabaseChange(message = "Database ready. Build or run a query.") {
+  state.builder = defaultBuilder();
+  renderBuilder();
+  hideError();
+  clearResults(message);
+}
+
+function applySchemaPayload(payload, message = "Database ready. Build or run a query.") {
+  state.databasePath = payload.active_database.path;
+  state.databaseKind = payload.active_database.kind;
+  state.sampleDatabase = payload.sample_database;
+  state.uploadedDatabase = payload.uploaded_database;
+  state.uploadRules = payload.upload_rules;
+  state.schema = payload.relations;
+
+  renderDatabaseSource();
+  renderSchema();
+  renderSamples();
+  resetWorkspaceForDatabaseChange(message);
 }
 
 function showError(message) {
@@ -977,14 +1043,68 @@ async function loadSchema() {
   if (!response.ok || !payload.ok) {
     throw new Error(payload.error || "failed to load schema");
   }
+  applySchemaPayload(payload);
+}
 
-  state.databasePath = payload.database_path;
-  state.schema = payload.relations;
-  renderSchema();
-  renderSamples();
+async function switchToSampleDatabase() {
+  hideError();
+  uploadFeedback.textContent = "Switching to the sample database…";
 
-  state.builder = defaultBuilder();
-  renderBuilder();
+  try {
+    const response = await fetch("/api/database/sample", {
+      method: "POST",
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.error || "failed to switch database");
+    }
+    applySchemaPayload(payload, payload.message || "Sample database loaded.");
+    uploadFeedback.textContent = payload.message || "Sample database loaded.";
+  } catch (error) {
+    showError(error.message);
+    uploadFeedback.textContent = "Could not switch to the sample database.";
+  }
+}
+
+async function uploadDatabase() {
+  hideError();
+
+  const file = uploadDbInput.files[0];
+  if (!file) {
+    showError("Choose a SQLite .db file before uploading.");
+    return;
+  }
+
+  if (!file.name.toLowerCase().endsWith(state.uploadRules.required_extension)) {
+    showError(`Uploaded database must use the ${state.uploadRules.required_extension} extension.`);
+    return;
+  }
+
+  if (file.size > state.uploadRules.max_bytes) {
+    showError(`Uploaded database exceeds the ${state.uploadRules.max_mb_text} limit.`);
+    return;
+  }
+
+  uploadFeedback.textContent = `Uploading ${file.name}…`;
+  const formData = new FormData();
+  formData.append("database", file);
+
+  try {
+    const response = await fetch("/api/database/upload", {
+      method: "POST",
+      body: formData,
+    });
+    const payload = await response.json();
+    if (!response.ok || !payload.ok) {
+      throw new Error(payload.error || "failed to upload database");
+    }
+    applySchemaPayload(payload, payload.message || "Uploaded database loaded.");
+    uploadFeedback.textContent = payload.message || `Uploaded ${file.name}.`;
+    uploadDbInput.value = "";
+  } catch (error) {
+    showError(error.message);
+    uploadFeedback.textContent = `Could not upload ${file.name}.`;
+  }
 }
 
 async function runQuery() {
@@ -1062,11 +1182,22 @@ relationList.addEventListener("click", (event) => {
 
 document.getElementById("builder-reset").addEventListener("click", resetBuilder);
 document.getElementById("run-query").addEventListener("click", runQuery);
+useSampleDbButton.addEventListener("click", switchToSampleDatabase);
+uploadDbButton.addEventListener("click", uploadDatabase);
 document.getElementById("clear-all").addEventListener("click", () => {
   queryEditor.value = "";
   hideError();
   clearResults();
   updateMathPreview("");
+});
+
+uploadDbInput.addEventListener("change", () => {
+  const file = uploadDbInput.files[0];
+  if (!file) {
+    uploadFeedback.textContent = "Uploads are scoped to your current browser session.";
+    return;
+  }
+  uploadFeedback.textContent = `Selected ${file.name} (${formatBytes(file.size)}).`;
 });
 
 document.getElementById("load-sample").addEventListener("click", () => {

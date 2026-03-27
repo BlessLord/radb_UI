@@ -157,6 +157,19 @@ pre {
   flex-wrap: wrap;
 }
 
+.upload-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.helper-note {
+  margin: 10px 0 0;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
 button,
 select,
 input,
@@ -174,6 +187,12 @@ button {
 
 button:hover {
   transform: translateY(-1px);
+}
+
+button:disabled {
+  cursor: default;
+  opacity: 0.55;
+  transform: none;
 }
 
 .primary-button {

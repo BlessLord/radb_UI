@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import configparser
+import sqlite3
 from datetime import date, datetime
 from decimal import Decimal
 from pathlib import Path
@@ -49,11 +50,21 @@ def _serialize_value(value: Any) -> Any:
     return str(value)
 
 
+def validate_sqlite_database(db_path: Path):
+    try:
+        with sqlite3.connect(f"file:{db_path}?mode=ro", uri=True) as conn:
+            conn.execute("PRAGMA schema_version;").fetchone()
+            conn.execute("SELECT name FROM sqlite_master LIMIT 1;").fetchone()
+    except sqlite3.DatabaseError as exc:
+        raise QueryServiceError(f"invalid SQLite database: {exc}") from exc
+
+
 class RadbService:
     def __init__(self, db_path: Path):
         self.db_path = db_path.resolve()
         if not self.db_path.exists():
             raise QueryServiceError(f"database file not found: {self.db_path}")
+        validate_sqlite_database(self.db_path)
 
         self.configured = _build_configured_settings(self.db_path)
         try:
@@ -64,6 +75,9 @@ class RadbService:
             self.db = DB(self.configured, _SilentResultPrinter())
         except (TypeSysError, KeyError, Exception) as exc:
             raise QueryServiceError(f"failed to initialize radb: {exc}") from exc
+
+    def close(self):
+        self.db.close()
 
     def schema_payload(self) -> dict[str, Any]:
         relations = []

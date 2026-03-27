@@ -1,0 +1,25 @@
+# Replace `radb.example.com` with your real domain name.
+# Point the domain's A record to your Lightsail instance first.
+
+radb.example.com {
+    encode zstd gzip
+
+    # Generate the bcrypt hash on the server with:
+    #   ./deploy/generate_caddy_bcrypt.sh SwustStudent
+    basic_auth {
+        SwustStudent <PASTE_BCRYPT_HASH_HERE>
+    }
+
+    reverse_proxy 127.0.0.1:8000
+
+    header {
+        X-Content-Type-Options nosniff
+        X-Frame-Options SAMEORIGIN
+        Referrer-Policy strict-origin-when-cross-origin
+    }
+
+    log {
+        output file /var/log/caddy/radb-webui.access.log
+        format console
+    }
+}

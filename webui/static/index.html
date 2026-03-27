@@ -27,6 +27,21 @@
 
       <section class="panel">
         <div class="section-heading">
+          <h2>Database Source</h2>
+          <p>Use the sample DB or upload your own SQLite file.</p>
+        </div>
+        <div id="database-source-status" class="path-pill">Loading database options…</div>
+        <div class="upload-actions">
+          <button id="use-sample-db" class="secondary-button" type="button">Use Sample Database</button>
+          <input id="upload-db-input" type="file" accept=".db" />
+          <button id="upload-db-button" class="primary-button" type="button">Upload .db</button>
+        </div>
+        <p id="upload-rules" class="helper-note">Only `.db` files up to 1 MB are allowed.</p>
+        <p id="upload-feedback" class="helper-note">Uploads are scoped to your current browser session.</p>
+      </section>
+
+      <section class="panel">
+        <div class="section-heading">
           <h2>Database Relations</h2>
           <p>Loaded from the active SQLite file.</p>
         </div>

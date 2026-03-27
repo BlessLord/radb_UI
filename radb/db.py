@@ -64,3 +64,9 @@ class DB:
             print(self.resultprinter.print(result, attrs))
         else:
             print('done')
+
+    def close(self):
+        try:
+            self.conn.close()
+        finally:
+            self.engine.dispose()
